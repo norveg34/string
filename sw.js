@@ -4,6 +4,7 @@ const urlsToCache = [
     "./index.html",
     "./manifest.json",
     "./SLK2_combiner.xlsx",
+    "./SLK1_combiner.xlsx",
     "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
 ];
 
