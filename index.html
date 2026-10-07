@@ -1,102 +1,93 @@
-```html
 <!DOCTYPE html>
 <html lang="hu">
-
 <head>
-
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    >
+
+    <meta name="theme-color" content="#007bff">
+    <meta name="background-color" content="#f5f6f8">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="String kereső">
+
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
 
     <title>String kereső</title>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <style>
-
         * {
             box-sizing: border-box;
         }
 
-        :root {
-            --background: #f5f6f8;
-            --container: white;
-            --text: #111;
-            --input: white;
-            --border: #ccc;
-            --primary: #007bff;
-            --result-bg: #eaf3ff;
-        }
-
-        body.dark {
-            --background: #111;
-            --container: #1e1e1e;
-            --text: #fff;
-            --input: #2b2b2b;
-            --border: #555;
-            --primary: #4da3ff;
-            --result-bg: #203449;
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100%;
         }
 
         body {
             font-family: Arial, sans-serif;
-            background: var(--background);
-            color: var(--text);
-            margin: 0;
-            padding: 15px;
+            background: #f5f6f8;
+            padding:
+                max(15px, env(safe-area-inset-top))
+                max(15px, env(safe-area-inset-right))
+                max(15px, env(safe-area-inset-bottom))
+                max(15px, env(safe-area-inset-left));
         }
 
         .container {
+            width: 100%;
             max-width: 500px;
             margin: 0 auto;
-            background: var(--container);
+            background: white;
             padding: 20px;
             border-radius: 12px;
-            box-shadow: 0 3px 12px rgba(0,0,0,0.15);
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.1);
         }
 
         h2 {
             text-align: center;
-            color: var(--primary);
-            margin-top: 0;
+            color: #007bff;
+            margin: 0 0 15px;
         }
 
         select,
-        input,
-        button {
+        input {
             width: 100%;
             height: 50px;
             padding: 10px;
             margin-bottom: 12px;
-            border: 1px solid var(--border);
+            border: 1px solid #ccc;
             border-radius: 8px;
             font-size: 17px;
-            background: var(--input);
-            color: var(--text);
+            background: white;
         }
 
         select:focus,
         input:focus {
             outline: none;
-            border-color: var(--primary);
+            border-color: #007bff;
         }
 
         input:disabled,
         select:disabled {
-            opacity: 0.6;
-        }
-
-        button {
-            background: var(--primary);
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-weight: bold;
+            background: #eee;
         }
 
         #status {
             text-align: center;
             font-size: 14px;
             margin-bottom: 15px;
+            min-height: 20px;
         }
 
         #result {
@@ -107,11 +98,12 @@
         .sor {
             font-size: 32px;
             font-weight: bold;
-            color: var(--primary);
+            color: #007bff;
             padding: 20px;
             border-radius: 10px;
-            background: var(--result-bg);
+            background: #eaf3ff;
             margin-bottom: 10px;
+            word-break: break-word;
         }
 
         .nincs {
@@ -119,10 +111,15 @@
             color: #777;
         }
 
+        .offline {
+            color: #d97706;
+        }
+
+        .online {
+            color: #198754;
+        }
     </style>
-
 </head>
-
 
 <body>
 
@@ -130,514 +127,273 @@
 
     <h2>String kereső</h2>
 
-    <button
-        id="themeButton"
-        onclick="toggleTheme()"
-    >
-        🌙 Fekete mód
-    </button>
-
     <div id="status">
         ⏳ Betöltés...
     </div>
-
-
-    <!-- EXCEL -->
-
-    <select
-        id="fileSelect"
-        onchange="excelValasztas()"
-    >
-
-        <option value="SLK2_combiner.xlsx">
-            SLK2 Combiner
-        </option>
-
-        <option value="SLK1_combiner.xlsx">
-            SLK1 Combiner
-        </option>
-
-    </select>
-
-
-    <!-- TERÜLET -->
 
     <select
         id="teruletSelect"
         disabled
         onchange="teruletValasztas()"
     >
-
-        <option value="">
-            Válassz területet
-        </option>
-
+        <option value="">Válassz területet</option>
     </select>
-
-
-    <!-- STRING -->
 
     <input
         type="text"
         id="searchInput"
         placeholder="Írd be a stringet..."
         disabled
-        oninput="kereses()"
         autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false"
+        oninput="kereses()"
     >
-
-
-    <!-- EREDMÉNY -->
 
     <div id="result"></div>
 
 </div>
 
-
 <script>
-
-
-/*
-==========================================================
-ADATOK
-==========================================================
-*/
 
 let tableData = [];
 
 
 /*
-==========================================================
-INDULÁS
-==========================================================
-*/
+ * Service Worker regisztráció
+ */
+if ("serviceWorker" in navigator) {
 
-window.addEventListener("DOMContentLoaded", function () {
+    window.addEventListener("load", () => {
 
-    /*
-    Téma
-    */
+        navigator.serviceWorker
+            .register("./sw.js")
+            .then(() => {
 
-    const savedTheme =
-        localStorage.getItem("theme");
+                console.log(
+                    "Service Worker regisztrálva."
+                );
 
+            })
+            .catch(error => {
 
-    if (savedTheme === "dark") {
+                console.error(
+                    "Service Worker hiba:",
+                    error
+                );
 
-        document.body.classList.add("dark");
+            });
 
-        document.getElementById(
-            "themeButton"
-        ).textContent = "☀️ Fehér mód";
-
-    }
-
-
-    /*
-    Alapértelmezett Excel
-    */
-
-    excelBetoltes(
-        "SLK2_combiner.xlsx"
-    );
-
-});
+    });
+}
 
 
 /*
-==========================================================
-FEKETE / FEHÉR MÓD
-==========================================================
-*/
+ * Online / offline állapot
+ */
+function frissitOnlineStatus() {
 
-function toggleTheme() {
+    const status =
+        document.getElementById("status");
 
-    document.body.classList.toggle("dark");
+    if (navigator.onLine) {
 
-
-    const dark =
-        document.body.classList.contains("dark");
-
-
-    if (dark) {
-
-        document.getElementById(
-            "themeButton"
-        ).textContent = "☀️ Fehér mód";
-
-        localStorage.setItem(
-            "theme",
-            "dark"
-        );
+        status.className = "online";
 
     } else {
 
-        document.getElementById(
-            "themeButton"
-        ).textContent = "🌙 Fekete mód";
-
-        localStorage.setItem(
-            "theme",
-            "light"
-        );
+        status.className = "offline";
 
     }
-
 }
+
+window.addEventListener(
+    "online",
+    frissitOnlineStatus
+);
+
+window.addEventListener(
+    "offline",
+    frissitOnlineStatus
+);
 
 
 /*
-==========================================================
-EXCEL VÁLASZTÁS
-==========================================================
-*/
+ * Excel betöltése
+ */
+window.addEventListener(
+    "DOMContentLoaded",
+    () => {
 
-function excelValasztas() {
+        frissitOnlineStatus();
 
-    const file =
-        document.getElementById(
-            "fileSelect"
-        ).value;
+        fetch("./SLK2_String.xlsx")
 
+            .then(response => {
 
-    excelBetoltes(file);
+                if (!response.ok) {
 
-}
+                    throw new Error(
+                        "Az Excel fájl nem található!"
+                    );
 
+                }
 
-/*
-==========================================================
-EXCEL BETÖLTÉS
-==========================================================
-*/
+                return response.arrayBuffer();
 
-function excelBetoltes(fileName) {
+            })
 
-    const status =
-        document.getElementById(
-            "status"
-        );
+            .then(buffer => {
 
+                const workbook =
+                    XLSX.read(
+                        new Uint8Array(buffer),
+                        {
+                            type: "array"
+                        }
+                    );
 
-    const teruletSelect =
-        document.getElementById(
-            "teruletSelect"
-        );
+                const sheet =
+                    workbook.Sheets[
+                        workbook.SheetNames[0]
+                    ];
 
 
-    const searchInput =
-        document.getElementById(
-            "searchInput"
-        );
+                const rawData =
+                    XLSX.utils.sheet_to_json(
+                        sheet,
+                        {
+                            header: 1,
+                            defval: ""
+                        }
+                    );
 
 
-    const result =
-        document.getElementById(
-            "result"
-        );
+                /*
+                 * Excel oszlopok:
+                 *
+                 * A = ROW
+                 * B = 1. STRING
+                 * C = 2. STRING
+                 * D = 3. STRING
+                 * E = 4. STRING
+                 * F = TERULET
+                 */
+                tableData =
+                    rawData
+                        .slice(1)
+                        .map(row => ({
 
+                            row: row[0],
 
-    /*
-    RESET
-    */
+                            string1: row[1],
 
-    tableData = [];
+                            string2: row[2],
 
+                            string3: row[3],
 
-    teruletSelect.innerHTML =
-        '<option value="">Válassz területet</option>';
+                            string4: row[4],
 
+                            terulet: row[5]
 
-    teruletSelect.disabled = true;
+                        }));
 
-    searchInput.disabled = true;
 
-    searchInput.value = "";
-
-    result.innerHTML = "";
-
-
-    status.innerHTML =
-        "⏳ " +
-        fileName +
-        " betöltése...";
-
-
-    /*
-    ======================================================
-    EXCEL BETÖLTÉSE
-    ======================================================
-    */
-
-    fetch(fileName)
-
-        .then(function (response) {
-
-            if (!response.ok) {
-
-                throw new Error(
-                    "Az Excel fájl nem található: " +
-                    fileName
-                );
-
-            }
-
-            return response.arrayBuffer();
-
-        })
-
-
-        .then(function (buffer) {
-
-            /*
-            Excel megnyitása
-            */
-
-            const workbook =
-                XLSX.read(
-                    buffer,
-                    {
-                        type: "array"
-                    }
-                );
-
-
-            /*
-            Első munkalap
-            */
-
-            const sheet =
-                workbook.Sheets[
-                    workbook.SheetNames[0]
-                ];
-
-
-            /*
-            ==================================================
-            EXCEL BEOLVASÁS
-            ==================================================
-            */
-
-            const rawData =
-                XLSX.utils.sheet_to_json(
-                    sheet,
-                    {
-                        header: 1,
-                        defval: "",
-                        raw: true
-                    }
-                );
-
-
-            /*
-            Ellenőrzés
-            */
-
-            if (
-                !rawData ||
-                rawData.length <= 1
-            ) {
-
-                throw new Error(
-                    "Az Excel fájl üres!"
-                );
-
-            }
-
-
-            /*
-            ==================================================
-            STRUKTÚRA
-            ==================================================
-
-            Excel:
-
-            ROW
-            STRING
-            STRING
-            STRING
-            STRING
-            TERULET
-
-            Ezért:
-
-            row[0] = ROW
-            row[1] = STRING
-            row[2] = STRING
-            row[3] = STRING
-            row[4] = STRING
-            row[5] = TERULET
-            ==================================================
-            */
-
-
-            tableData =
-                rawData
-                    .slice(1)
-                    .map(function (row) {
-
-                        return {
-
-                            row:
-                                row[0],
-
-                            string1:
-                                row[1],
-
-                            string2:
-                                row[2],
-
-                            string3:
-                                row[3],
-
-                            string4:
-                                row[4],
-
-                            terulet:
-                                row[5]
-
-                        };
-
-                    });
-
-
-            /*
-            ==================================================
-            TERÜLETEK
-            ==================================================
-            */
-
-            const teruletek =
-                [
+                /*
+                 * Területek kigyűjtése
+                 */
+                const teruletek = [
                     ...new Set(
 
                         tableData
-
-                            .map(function (item) {
-
-                                return String(
-                                    item.terulet ?? ""
-                                ).trim();
-
-                            })
-
-                            .filter(function (value) {
-
-                                return (
-                                    value !== "" &&
-                                    value !== "undefined" &&
-                                    value !== "null"
-                                );
-
-                            })
+                            .map(item =>
+                                String(
+                                    item.terulet
+                                ).trim()
+                            )
+                            .filter(
+                                x => x !== ""
+                            )
 
                     )
                 ];
 
 
-            /*
-            ABC sorrend
-            */
-
-            teruletek.sort(
-                function (a, b) {
-
-                    return a.localeCompare(
-                        b,
-                        "hu"
+                const select =
+                    document.getElementById(
+                        "teruletSelect"
                     );
 
-                }
-            );
 
+                /*
+                 * Területek rendezése
+                 */
+                teruletek
+                    .sort(
+                        (a, b) =>
+                            a.localeCompare(
+                                b,
+                                "hu"
+                            )
+                    )
+                    .forEach(terulet => {
 
-            /*
-            ==================================================
-            TERÜLET SELECT FELTÖLTÉSE
-            ==================================================
-            */
+                        const option =
+                            document.createElement(
+                                "option"
+                            );
 
-            teruletek.forEach(
-                function (terulet) {
+                        option.value =
+                            terulet;
 
-                    const option =
-                        document.createElement(
-                            "option"
+                        option.textContent =
+                            terulet;
+
+                        select.appendChild(
+                            option
                         );
 
-
-                    option.value =
-                        terulet;
+                    });
 
 
-                    option.textContent =
-                        terulet;
+                select.disabled = false;
 
 
-                    teruletSelect.appendChild(
-                        option
-                    );
-
-                }
-            );
-
-
-            /*
-            Engedélyezés
-            */
-
-            teruletSelect.disabled = false;
+                document.getElementById(
+                    "status"
+                ).innerHTML =
+                    navigator.onLine
+                        ? "✓ Betöltve"
+                        : "✓ Offline mód";
 
 
-            /*
-            Sikeres betöltés
-            */
+                setTimeout(() => {
 
-            status.innerHTML =
-                "✅ Betöltve: " +
-                tableData.length +
-                " sor";
+                    document.getElementById(
+                        "status"
+                    ).innerHTML = "";
 
+                }, 3000);
 
-            /*
-            Hibás struktúra ellenőrzése
-            */
+            })
 
-            if (
-                teruletek.length === 0
-            ) {
+            .catch(error => {
 
-                status.innerHTML =
-                    "⚠️ Nem található TERULET adat az Excelben.";
+                document.getElementById(
+                    "status"
+                ).innerHTML =
+                    "❌ " + error.message;
 
-            }
+            });
 
-        })
-
-
-        .catch(function (error) {
-
-            console.error(
-                "Excel hiba:",
-                error
-            );
-
-
-            status.innerHTML =
-                "❌ " +
-                error.message;
-
-        });
-
-}
+    }
+);
 
 
 /*
-==========================================================
-TERÜLET VÁLASZTÁS
-==========================================================
-*/
-
+ * Terület kiválasztása
+ */
 function teruletValasztas() {
 
     const terulet =
@@ -658,10 +414,6 @@ function teruletValasztas() {
         );
 
 
-    /*
-    Nincs kiválasztva
-    */
-
     if (!terulet) {
 
         input.disabled = true;
@@ -671,31 +423,26 @@ function teruletValasztas() {
         result.innerHTML = "";
 
         return;
-
     }
 
 
-    /*
-    Keresés engedélyezése
-    */
-
     input.disabled = false;
-
-    input.value = "";
-
-    result.innerHTML = "";
 
     input.focus();
 
+    result.innerHTML = "";
 }
 
 
 /*
-==========================================================
-KERESÉS
-==========================================================
-*/
-
+ * Keresés
+ *
+ * Keresés:
+ * 1. STRING
+ * 2. STRING
+ * 3. STRING
+ * 4. STRING
+ */
 function kereses() {
 
     const terulet =
@@ -705,9 +452,11 @@ function kereses() {
 
 
     const keresett =
-        document.getElementById(
-            "searchInput"
-        ).value
+        document
+            .getElementById(
+                "searchInput"
+            )
+            .value
             .trim()
             .toLowerCase();
 
@@ -718,214 +467,122 @@ function kereses() {
         );
 
 
-    /*
-    Nincs keresés
-    */
-
-    if (
-        !terulet ||
-        !keresett
-    ) {
+    if (!terulet || !keresett) {
 
         result.innerHTML = "";
 
         return;
-
     }
 
 
     /*
-    ==================================================
-    KERESÉS MIND A 4 STRINGBEN
-    ==================================================
-    */
-
+     * Találatok keresése
+     */
     const talalatok =
-        tableData.filter(
-            function (item) {
+        tableData.filter(item => {
 
-                /*
-                Terület
-                */
-
-                const itemTerulet =
-                    String(
-                        item.terulet ?? ""
-                    )
-                        .trim();
+            const rowTerulet =
+                String(
+                    item.terulet
+                ).trim();
 
 
-                if (
-                    itemTerulet !== terulet
-                ) {
-
-                    return false;
-
-                }
-
-
-                /*
-                STRING 1
-                */
-
-                const string1 =
-                    String(
-                        item.string1 ?? ""
-                    )
-                        .trim()
-                        .toLowerCase();
+            const s1 =
+                String(
+                    item.string1 ?? ""
+                )
+                .trim()
+                .toLowerCase();
 
 
-                /*
-                STRING 2
-                */
-
-                const string2 =
-                    String(
-                        item.string2 ?? ""
-                    )
-                        .trim()
-                        .toLowerCase();
+            const s2 =
+                String(
+                    item.string2 ?? ""
+                )
+                .trim()
+                .toLowerCase();
 
 
-                /*
-                STRING 3
-                */
-
-                const string3 =
-                    String(
-                        item.string3 ?? ""
-                    )
-                        .trim()
-                        .toLowerCase();
+            const s3 =
+                String(
+                    item.string3 ?? ""
+                )
+                .trim()
+                .toLowerCase();
 
 
-                /*
-                STRING 4
-                */
-
-                const string4 =
-                    String(
-                        item.string4 ?? ""
-                    )
-                        .trim()
-                        .toLowerCase();
+            const s4 =
+                String(
+                    item.string4 ?? ""
+                )
+                .trim()
+                .toLowerCase();
 
 
-                /*
-                Bármelyik STRING-ben
-                */
+            return (
+                rowTerulet === terulet &&
+                (
+                    s1.includes(keresett) ||
+                    s2.includes(keresett) ||
+                    s3.includes(keresett) ||
+                    s4.includes(keresett)
+                )
+            );
 
-                return (
-
-                    string1.includes(
-                        keresett
-                    )
-
-                    ||
-
-                    string2.includes(
-                        keresett
-                    )
-
-                    ||
-
-                    string3.includes(
-                        keresett
-                    )
-
-                    ||
-
-                    string4.includes(
-                        keresett
-                    )
-
-                );
-
-            }
-        );
+        });
 
 
     /*
-    ==================================================
-    NINCS TALÁLAT
-    ==================================================
-    */
-
-    if (
-        talalatok.length === 0
-    ) {
+     * Nincs találat
+     */
+    if (talalatok.length === 0) {
 
         result.innerHTML =
-            `
-            <div class="nincs">
+            `<div class="nincs">
                 Nincs találat
-            </div>
-            `;
+            </div>`;
 
         return;
-
     }
 
 
     /*
-    ==================================================
-    TALÁLATOK
-    ==================================================
-    */
-
+     * Találatok megjelenítése
+     */
     result.innerHTML =
         talalatok
-
-            .map(
-                function (item) {
-
-                    return `
-                        <div class="sor">
-                            ${escapeHtml(item.row)}
-                        </div>
-                    `;
-
-                }
+            .map(item =>
+                `<div class="sor">
+                    ${escapeHtml(item.row)}
+                </div>`
             )
-
             .join("");
 
 }
 
 
 /*
-==========================================================
-HTML BIZTONSÁG
-==========================================================
-*/
-
+ * HTML escape
+ */
 function escapeHtml(value) {
 
-    return String(
-        value ?? ""
-    )
-
+    return String(value ?? "")
         .replace(
             /&/g,
             "&amp;"
         )
-
         .replace(
             /</g,
             "&lt;"
         )
-
         .replace(
             />/g,
             "&gt;"
         )
-
         .replace(
             /"/g,
             "&quot;"
         )
-
         .replace(
             /'/g,
             "&#039;"
@@ -936,6 +593,4 @@ function escapeHtml(value) {
 </script>
 
 </body>
-
 </html>
-```
