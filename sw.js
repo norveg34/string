@@ -4,7 +4,7 @@ const FILES_TO_CACHE = [
     "./",
     "./index.html",
     "./manifest.json",
-    "./SLK2_String.xlsx",
+    "./SLK2_combiner.xlsx",
     "./icon-192.png",
     "./icon-512.png",
     "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
