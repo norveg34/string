@@ -1,45 +1,136 @@
-const CACHE_NAME = "string-kereso-v2";
-const APP_SHELL = [
-  "./",
-  "./index.html",
-  "./manifest.json",
-  "./icon-192.png",
-  "./icon-512.png",
-  "./SLK2_String.xlsx",
-  "./SLK2_combiner.xlsx",
-  "./SLK1_combiner.xlsx",
-  "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
+const CACHE_NAME = "string-kereso-v1";
+
+const FILES_TO_CACHE = [
+    "./",
+    "./index.html",
+    "./manifest.json",
+    "./SLK2_String.xlsx",
+    "./icon-192.png",
+    "./icon-512.png",
+    "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
 ];
 
-self.addEventListener("install", event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(async cache => {
-      for (const url of APP_SHELL) {
-        try { await cache.add(url); } catch (e) { console.warn("Cache kihagyva:", url); }
-      }
-    })
-  );
-  self.skipWaiting();
-});
 
-self.addEventListener("activate", event => {
-  event.waitUntil(
-    caches.keys().then(keys => Promise.all(
-      keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
-    ))
-  );
-  self.clients.claim();
-});
+/*
+ * Telepítés
+ */
+self.addEventListener(
+    "install",
+    event => {
 
-self.addEventListener("fetch", event => {
-  if (event.request.method !== "GET") return;
-  event.respondWith(
-    fetch(event.request).then(response => {
-      if (response.ok) {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
-      }
-      return response;
-    }).catch(() => caches.match(event.request))
-  );
-});
+        event.waitUntil(
+
+            caches
+                .open(CACHE_NAME)
+                .then(cache => {
+
+                    return cache.addAll(
+                        FILES_TO_CACHE
+                    );
+
+                })
+
+        );
+
+        self.skipWaiting();
+    }
+);
+
+
+/*
+ * Aktiválás
+ */
+self.addEventListener(
+    "activate",
+    event => {
+
+        event.waitUntil(
+
+            caches.keys()
+                .then(cacheNames => {
+
+                    return Promise.all(
+
+                        cacheNames
+                            .filter(
+                                name =>
+                                    name !==
+                                    CACHE_NAME
+                            )
+                            .map(
+                                name =>
+                                    caches.delete(
+                                        name
+                                    )
+                            )
+
+                    );
+
+                })
+
+        );
+
+        self.clients.claim();
+    }
+);
+
+
+/*
+ * Fetch
+ *
+ * Cache First stratégia.
+ * Így internet nélkül is működik.
+ */
+self.addEventListener(
+    "fetch",
+    event => {
+
+        event.respondWith(
+
+            caches.match(
+                event.request
+            )
+            .then(cachedResponse => {
+
+                if (cachedResponse) {
+                    return cachedResponse;
+                }
+
+                return fetch(
+                    event.request
+                )
+                .then(response => {
+
+                    /*
+                     * Sikeres válasz cache-elése
+                     */
+                    if (
+                        response &&
+                        response.status === 200 &&
+                        response.type !== "opaque"
+                    ) {
+
+                        const responseClone =
+                            response.clone();
+
+                        caches
+                            .open(CACHE_NAME)
+                            .then(cache => {
+
+                                cache.put(
+                                    event.request,
+                                    responseClone
+                                );
+
+                            });
+                    }
+
+                    return response;
+
+                });
+
+            })
+
+        );
+    }
+);
