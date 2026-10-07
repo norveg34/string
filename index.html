@@ -332,6 +332,7 @@ function toggleTheme() {
         metaTheme.content = "#030712";
         localStorage.setItem("theme", "dark-mode");
     } else {
+        body.classList.contains("dark-mode")
         body.className = "light-mode";
         btn.textContent = "🌙";
         metaTheme.content = "#f8fafc";
@@ -349,54 +350,76 @@ if ("serviceWorker" in navigator) {
     });
 }
 
+/*
+ * Két Excel fájl betöltése párhuzamosan (SLK1 és SLK2)
+ */
 window.addEventListener(
     "DOMContentLoaded",
     () => {
-        fetch("./SLK2_combiner.xlsx")
-            .then(response => {
-                if (!response.ok) throw new Error("Az Excel fájl nem található!");
-                return response.arrayBuffer();
+        Promise.all([
+            fetch("./SLK1_combiner.xlsx").then(res => {
+                if (!res.ok) throw new Error("Az SLK1_combiner.xlsx nem található!");
+                return res.arrayBuffer();
+            }),
+            fetch("./SLK2_combiner.xlsx").then(res => {
+                if (!res.ok) throw new Error("Az SLK2_combiner.xlsx nem található!");
+                return res.arrayBuffer();
             })
-            .then(buffer => {
-                const workbook = XLSX.read(new Uint8Array(buffer), { type: "array" });
-                const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+        ])
+        .then(([buf1, buf2]) => {
+            // SLK1 feldolgozása
+            const wb1 = XLSX.read(new Uint8Array(buf1), { type: "array" });
+            const sheet1 = wb1.Sheets[wb1.SheetNames[0]];
+            const raw1 = XLSX.utils.sheet_to_json(sheet1, { header: 1, defval: "" });
+            const data1 = raw1.slice(1).map(row => ({
+                row: row[0],
+                string1: row[1],
+                string2: row[2],
+                string3: row[3],
+                string4: row[4],
+                terulet: row[5]
+            }));
 
-                tableData = rawData
-                    .slice(1)
-                    .map(row => ({
-                        row: row[0],
-                        string1: row[1],
-                        string2: row[2],
-                        string3: row[3],
-                        string4: row[4],
-                        terulet: row[5]
-                    }));
+            // SLK2 feldolgozása
+            const wb2 = XLSX.read(new Uint8Array(buf2), { type: "array" });
+            const sheet2 = wb2.Sheets[wb2.SheetNames[0]];
+            const raw2 = XLSX.utils.sheet_to_json(sheet2, { header: 1, defval: "" });
+            const data2 = raw2.slice(1).map(row => ({
+                row: row[0],
+                string1: row[1],
+                string2: row[2],
+                string3: row[3],
+                string4: row[4],
+                terulet: row[5]
+            }));
 
-                const teruletek = [
-                    ...new Set(
-                        tableData
-                            .map(item => String(item.terulet).trim())
-                            .filter(x => x !== "")
-                    )
-                ];
+            // Adatok egyesítése egy tömbbe
+            tableData = [...data1, ...data2];
 
-                const select = document.getElementById("teruletSelect");
+            const teruletek = [
+                ...new Set(
+                    tableData
+                        .map(item => String(item.terulet).trim())
+                        .filter(x => x !== "")
+                )
+            ];
 
-                teruletek
-                    .sort((a, b) => a.localeCompare(b, "hu"))
-                    .forEach(terulet => {
-                        const option = document.createElement("option");
-                        option.value = terulet;
-                        option.textContent = terulet;
-                        select.appendChild(option);
-                    });
+            const select = document.getElementById("teruletSelect");
 
-                select.disabled = false;
-            })
-            .catch(error => {
-                document.getElementById("status").innerHTML = "❌ " + error.message;
-            });
+            teruletek
+                .sort((a, b) => a.localeCompare(b, "hu"))
+                .forEach(terulet => {
+                    const option = document.createElement("option");
+                    option.value = terulet;
+                    option.textContent = terulet;
+                    select.appendChild(option);
+                });
+
+            select.disabled = false;
+        })
+        .catch(error => {
+            document.getElementById("status").innerHTML = "❌ " + error.message;
+        });
     }
 );
 
