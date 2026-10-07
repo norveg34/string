@@ -1,11 +1,1079 @@
-<!doctype html><html lang="hu"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#007bff"><link rel="manifest" href="manifest.json"><title>SLK2 String</title><style>*{box-sizing:border-box}body{margin:0;padding:15px;font-family:Arial,sans-serif;background:#f5f6f8;color:#222}.app{max-width:500px;margin:auto;background:#fff;padding:18px;border-radius:14px;box-shadow:0 3px 14px #0001}h1{text-align:center;color:#007bff;font-size:21px;margin:2px 0 16px}.status{text-align:center;font-size:13px;padding:9px;border-radius:8px;background:#eef1f4;margin-bottom:14px}select,input{width:100%;height:52px;padding:10px 12px;margin-bottom:12px;border:1px solid #c8cdd3;border-radius:9px;font-size:17px;background:#fff}input:disabled{background:#eee}#result{text-align:center;margin-top:18px}.row{font-size:36px;font-weight:700;color:#007bff;padding:20px 12px;margin-bottom:10px;border-radius:10px;background:#eaf3ff}.none{font-size:18px;color:#777;padding:15px}.info{text-align:center;color:#777;font-size:11px;margin-top:12px}</style></head><body><div class="app"><h1>SLK2 String kereső</h1><div class="status" id="status">Betöltés...</div><select id="area" disabled><option value="">Válassz területet</option></select><input id="search" type="text" placeholder="Írd be a stringet..." autocomplete="off" autocapitalize="off" spellcheck="false" disabled><div id="result"></div><div class="info" id="info"></div></div><script>
-const EXCEL='SLK2_String.xlsx',DB='SLK2OfflineDB',STORE='data',KEY='excel',INTERVAL=3600000;let rows=[],db;const $=id=>document.getElementById(id);function status(t,ok=true){$('status').textContent=t;$('status').style.background=ok?'#dff3e4':'#f8d7da';$('status').style.color=ok?'#155724':'#721c24'}function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
-function openDB(){return new Promise((res,rej)=>{let r=indexedDB.open(DB,1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains(STORE))r.result.createObjectStore(STORE)};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}function getLocal(){return new Promise((res,rej)=>{let r=db.transaction(STORE,'readonly').objectStore(STORE).get(KEY);r.onsuccess=()=>res(r.result||null);r.onerror=()=>rej(r.error)})}function saveLocal(data){return new Promise((res,rej)=>{let tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put({rows:data,updatedAt:new Date().toISOString()},KEY);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
-function buildAreas(){let s=$('area'),old=s.value;s.innerHTML='<option value="">Válassz területet</option>';[...new Set(rows.map(r=>String(r.TERULET??'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'hu')).forEach(a=>{let o=document.createElement('option');o.value=a;o.textContent=a;s.appendChild(o)});if([...s.options].some(o=>o.value===old))s.value=old)}function enable(){$('area').disabled=false}
-async function unzip(buf){if(!('DecompressionStream'in window))throw Error('A telefon böngészője nem támogatja az XLSX feldolgozását. Frissítsd a Chrome-ot.');let u=new Uint8Array(buf),dv=new DataView(u.buffer),eocd=-1;for(let i=u.length-22;i>=0&&i>u.length-65558;i--){if(dv.getUint32(i,true)===0x06054b50){eocd=i;break}}if(eocd<0)throw Error('Érvénytelen XLSX fájl.');let cdSize=dv.getUint32(eocd+12,true),cdOff=dv.getUint32(eocd+16,true),p=cdOff,out={};while(p<cdOff+cdSize){if(dv.getUint32(p,true)!==0x02014b50)break;let method=dv.getUint16(p+10,true),cs=dv.getUint32(p+20,true),us=dv.getUint32(p+24,true),nl=dv.getUint16(p+28,true),xl=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),off=dv.getUint32(p+42,true),name=new TextDecoder().decode(u.slice(p+46,p+46+nl));let lp=off,ln=dv.getUint16(lp+26,true),ll=dv.getUint16(lp+28,true),start=lp+30+ln+ll,raw=u.slice(start,start+cs),data;if(method===0)data=raw;else if(method===8){let ds=new DecompressionStream('deflate-raw');data=new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(ds)).arrayBuffer())}else throw Error('Nem támogatott XLSX tömörítés.');out[name]=data;p+=46+nl+xl+cl}return out}
-function xml(bytes){return new DOMParser().parseFromString(new TextDecoder().decode(bytes),'application/xml')}
-function parseXlsx(buf){return unzip(buf).then(files=>{let shared=[];if(files['xl/sharedStrings.xml']){let d=xml(files['xl/sharedStrings.xml']);shared=[...d.getElementsByTagName('si')].map(si=>[...si.getElementsByTagName('t')].map(t=>t.textContent).join(''))}let sheet=files['xl/worksheets/sheet1.xml'];if(!sheet)throw Error('Az első munkalap nem található.');let d=xml(sheet),rs=[...d.getElementsByTagName('row')],grid=[];for(let r of rs){let vals=[];for(let c of r.getElementsByTagName('c')){let ref=c.getAttribute('r')||'',m=ref.match(/([A-Z]+)/),col=0;if(m)for(let ch of m[1])col=col*26+ch.charCodeAt(0)-64;col--;let v=c.getElementsByTagName('v')[0]?.textContent??'';let typ=c.getAttribute('t');if(typ==='s')v=shared[Number(v)]??'';else if(typ==='inlineStr')v=[...c.getElementsByTagName('t')].map(t=>t.textContent).join('');vals[col]=v}grid.push(vals)}if(!grid.length)return[];let headers=grid[0].map(x=>String(x??''));return grid.slice(1).map(a=>{let o={};headers.forEach((h,i)=>{if(h)o[h]=a[i]??''});return o})})}
-async function update(){try{status('Frissítés ellenőrzése...');let r=await fetch(EXCEL+'?v='+Date.now(),{cache:'no-store'});if(!r.ok)throw Error('Az Excel nem érhető el.');let data=await parseXlsx(await r.arrayBuffer());if(!data.length)throw Error('Az Excel üres.');await saveLocal(data);rows=data;buildAreas();enable();status('Adatok frissítve');$('info').textContent='Utoljára frissítve: '+new Date().toLocaleString('hu-HU')}catch(e){if(rows.length)status('Offline mód – helyi adatok használata');else status('Hiba: '+e.message,false)}}
-$('area').addEventListener('change',()=>{$('search').value='';$('result').innerHTML='';$('search').disabled=!$('area').value;if($('area').value)$('search').focus()});$('search').addEventListener('input',()=>{let a=$('area').value,q=$('search').value.trim().toLowerCase();if(!a||!q){$('result').innerHTML='';return}let hits=rows.filter(r=>String(r.TERULET??'').trim()===a&&String(r.STRING??'').toLowerCase().includes(q));$('result').innerHTML=hits.length?hits.map(r=>`<div class="row">${esc(r.ROW)}</div>`).join(''):'<div class="none">Nincs találat</div>'});
-(async()=>{if('serviceWorker'in navigator)try{await navigator.serviceWorker.register('./sw.js')}catch(e){}db=await openDB();let local=await getLocal();if(local?.rows?.length){rows=local.rows;buildAreas();enable();status('Helyi adatok betöltve');$('info').textContent='Utoljára frissítve: '+new Date(local.updatedAt).toLocaleString('hu-HU')}else status('Első adatbetöltés...');if(navigator.onLine)await update();else if(!rows.length)status('Nincs internet és nincs helyi adat.',false);window.addEventListener('online',update);setInterval(()=>navigator.onLine&&update(),INTERVAL)})();
-</script></body></html>
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+
+<meta name="theme-color" content="#007bff">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+<link rel="manifest" href="./manifest.json">
+
+<title>SLK2 String</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 15px;
+    font-family: Arial, sans-serif;
+    background: #f5f6f8;
+    color: #222;
+}
+
+.app {
+    max-width: 500px;
+    margin: auto;
+    background: #fff;
+    padding: 18px;
+    border-radius: 14px;
+    box-shadow: 0 3px 14px #0001;
+}
+
+h1 {
+    text-align: center;
+    color: #007bff;
+    font-size: 21px;
+    margin: 2px 0 16px;
+}
+
+.status {
+    text-align: center;
+    font-size: 13px;
+    padding: 9px;
+    border-radius: 8px;
+    background: #eef1f4;
+    margin-bottom: 14px;
+}
+
+select,
+input {
+    width: 100%;
+    height: 52px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    border: 1px solid #c8cdd3;
+    border-radius: 9px;
+    font-size: 17px;
+    background: #fff;
+}
+
+input:disabled {
+    background: #eee;
+}
+
+#result {
+    text-align: center;
+    margin-top: 18px;
+}
+
+.row {
+    font-size: 36px;
+    font-weight: 700;
+    color: #007bff;
+    padding: 20px 12px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    background: #eaf3ff;
+}
+
+.none {
+    font-size: 18px;
+    color: #777;
+    padding: 15px;
+}
+
+.info {
+    text-align: center;
+    color: #777;
+    font-size: 11px;
+    margin-top: 12px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+    <h1>SLK2 String kereső</h1>
+
+    <div class="status" id="status">
+        Betöltés...
+    </div>
+
+    <select id="area" disabled>
+        <option value="">Válassz területet</option>
+    </select>
+
+    <input
+        id="search"
+        type="text"
+        placeholder="Írd be a stringet..."
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+        disabled
+    >
+
+    <div id="result"></div>
+
+    <div class="info" id="info"></div>
+
+</div>
+
+<script>
+
+const EXCEL = './SLK2_String.xlsx';
+
+const DB_NAME = 'SLK2OfflineDB';
+const STORE_NAME = 'data';
+const DB_KEY = 'excel';
+
+const UPDATE_INTERVAL = 60 * 60 * 1000;
+
+let rows = [];
+let db = null;
+
+
+/* -----------------------------
+   SEGÉDFÜGGVÉNYEK
+----------------------------- */
+
+const $ = id => document.getElementById(id);
+
+function setStatus(text, ok = true) {
+
+    $('status').textContent = text;
+
+    $('status').style.background =
+        ok ? '#dff3e4' : '#f8d7da';
+
+    $('status').style.color =
+        ok ? '#155724' : '#721c24';
+}
+
+
+function esc(value) {
+
+    return String(value ?? '').replace(
+        /[&<>"']/g,
+        char => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        }[char])
+    );
+}
+
+
+/* -----------------------------
+   INDEXED DB
+----------------------------- */
+
+function openDB() {
+
+    return new Promise((resolve, reject) => {
+
+        const request = indexedDB.open(DB_NAME, 1);
+
+        request.onupgradeneeded = () => {
+
+            const database = request.result;
+
+            if (!database.objectStoreNames.contains(STORE_NAME)) {
+                database.createObjectStore(STORE_NAME);
+            }
+        };
+
+        request.onsuccess = () => {
+            resolve(request.result);
+        };
+
+        request.onerror = () => {
+            reject(request.error);
+        };
+    });
+}
+
+
+function getLocal() {
+
+    return new Promise((resolve, reject) => {
+
+        const transaction =
+            db.transaction(STORE_NAME, 'readonly');
+
+        const request =
+            transaction
+                .objectStore(STORE_NAME)
+                .get(DB_KEY);
+
+        request.onsuccess = () => {
+            resolve(request.result || null);
+        };
+
+        request.onerror = () => {
+            reject(request.error);
+        };
+    });
+}
+
+
+function saveLocal(data) {
+
+    return new Promise((resolve, reject) => {
+
+        const transaction =
+            db.transaction(STORE_NAME, 'readwrite');
+
+        transaction
+            .objectStore(STORE_NAME)
+            .put(
+                {
+                    rows: data,
+                    updatedAt: new Date().toISOString()
+                },
+                DB_KEY
+            );
+
+        transaction.oncomplete = () => {
+            resolve();
+        };
+
+        transaction.onerror = () => {
+            reject(transaction.error);
+        };
+    });
+}
+
+
+/* -----------------------------
+   TERÜLETEK
+----------------------------- */
+
+function buildAreas() {
+
+    const select = $('area');
+
+    const oldValue = select.value;
+
+    select.innerHTML =
+        '<option value="">Válassz területet</option>';
+
+    const areas = [
+        ...new Set(
+            rows
+                .map(row =>
+                    String(row.TERULET ?? '').trim()
+                )
+                .filter(Boolean)
+        )
+    ];
+
+    areas.sort((a, b) =>
+        a.localeCompare(b, 'hu')
+    );
+
+    areas.forEach(area => {
+
+        const option =
+            document.createElement('option');
+
+        option.value = area;
+        option.textContent = area;
+
+        select.appendChild(option);
+    });
+
+    if (
+        [...select.options]
+            .some(option => option.value === oldValue)
+    ) {
+        select.value = oldValue;
+    }
+}
+
+
+function enableArea() {
+
+    $('area').disabled = false;
+}
+
+
+/* -----------------------------
+   XLSX ZIP FELDOLGOZÁS
+----------------------------- */
+
+async function unzip(buffer) {
+
+    if (!('DecompressionStream' in window)) {
+
+        throw new Error(
+            'A böngésző nem támogatja az XLSX feldolgozását. Frissítsd a Chrome-ot.'
+        );
+    }
+
+    const bytes = new Uint8Array(buffer);
+
+    const view = new DataView(bytes.buffer);
+
+    let endOfCentralDirectory = -1;
+
+    const minOffset =
+        Math.max(0, bytes.length - 65558);
+
+    for (
+        let i = bytes.length - 22;
+        i >= minOffset;
+        i--
+    ) {
+
+        if (
+            view.getUint32(i, true) === 0x06054b50
+        ) {
+            endOfCentralDirectory = i;
+            break;
+        }
+    }
+
+    if (endOfCentralDirectory < 0) {
+        throw new Error('Érvénytelen XLSX fájl.');
+    }
+
+    const centralDirectorySize =
+        view.getUint32(
+            endOfCentralDirectory + 12,
+            true
+        );
+
+    const centralDirectoryOffset =
+        view.getUint32(
+            endOfCentralDirectory + 16,
+            true
+        );
+
+    let position = centralDirectoryOffset;
+
+    const files = {};
+
+    while (
+        position <
+        centralDirectoryOffset + centralDirectorySize
+    ) {
+
+        if (
+            view.getUint32(position, true) !==
+            0x02014b50
+        ) {
+            break;
+        }
+
+        const method =
+            view.getUint16(position + 10, true);
+
+        const compressedSize =
+            view.getUint32(position + 20, true);
+
+        const fileNameLength =
+            view.getUint16(position + 28, true);
+
+        const extraLength =
+            view.getUint16(position + 30, true);
+
+        const commentLength =
+            view.getUint16(position + 32, true);
+
+        const localHeaderOffset =
+            view.getUint32(position + 42, true);
+
+        const fileNameBytes =
+            bytes.slice(
+                position + 46,
+                position + 46 + fileNameLength
+            );
+
+        const fileName =
+            new TextDecoder().decode(fileNameBytes);
+
+        const localPosition =
+            localHeaderOffset;
+
+        const localFileNameLength =
+            view.getUint16(
+                localPosition + 26,
+                true
+            );
+
+        const localExtraLength =
+            view.getUint16(
+                localPosition + 28,
+                true
+            );
+
+        const dataStart =
+            localPosition +
+            30 +
+            localFileNameLength +
+            localExtraLength;
+
+        const compressedData =
+            bytes.slice(
+                dataStart,
+                dataStart + compressedSize
+            );
+
+        let data;
+
+        if (method === 0) {
+
+            data = compressedData;
+
+        } else if (method === 8) {
+
+            const stream =
+                new DecompressionStream('deflate-raw');
+
+            const decompressed =
+                await new Response(
+                    new Blob([compressedData])
+                        .stream()
+                        .pipeThrough(stream)
+                ).arrayBuffer();
+
+            data =
+                new Uint8Array(decompressed);
+
+        } else {
+
+            throw new Error(
+                'Nem támogatott XLSX tömörítési mód.'
+            );
+        }
+
+        files[fileName] = data;
+
+        position +=
+            46 +
+            fileNameLength +
+            extraLength +
+            commentLength;
+    }
+
+    return files;
+}
+
+
+/* -----------------------------
+   XML
+----------------------------- */
+
+function parseXML(bytes) {
+
+    const text =
+        new TextDecoder().decode(bytes);
+
+    return new DOMParser()
+        .parseFromString(text, 'application/xml');
+}
+
+
+/* -----------------------------
+   XLSX FELDOLGOZÁS
+----------------------------- */
+
+async function parseXlsx(buffer) {
+
+    const files =
+        await unzip(buffer);
+
+
+    /* Shared strings */
+
+    const sharedStrings = [];
+
+    if (files['xl/sharedStrings.xml']) {
+
+        const document =
+            parseXML(
+                files['xl/sharedStrings.xml']
+            );
+
+        const items =
+            [...document.getElementsByTagName('si')];
+
+        for (const item of items) {
+
+            const textNodes =
+                [...item.getElementsByTagName('t')];
+
+            sharedStrings.push(
+                textNodes
+                    .map(node => node.textContent)
+                    .join('')
+            );
+        }
+    }
+
+
+    /* Workbook */
+
+    const workbookFile =
+        files['xl/workbook.xml'];
+
+    if (!workbookFile) {
+
+        throw new Error(
+            'Az XLSX workbook.xml fájlja nem található.'
+        );
+    }
+
+    const workbook =
+        parseXML(workbookFile);
+
+    const sheets =
+        [...workbook.getElementsByTagName('sheet')];
+
+    if (!sheets.length) {
+
+        throw new Error(
+            'Az XLSX-ben nincs munkalap.'
+        );
+    }
+
+
+    /* Első munkalap */
+
+    const firstSheet =
+        sheets[0];
+
+    const relationId =
+        firstSheet.getAttribute(
+            'r:id'
+        ) ||
+        firstSheet.getAttribute(
+            'id'
+        );
+
+    let sheetPath = null;
+
+
+    /* Workbook relationships */
+
+    const relationsFile =
+        files['xl/_rels/workbook.xml.rels'];
+
+    if (relationsFile && relationId) {
+
+        const relations =
+            parseXML(relationsFile);
+
+        const relationshipNodes =
+            [
+                ...relations.getElementsByTagName(
+                    'Relationship'
+                )
+            ];
+
+        const relation =
+            relationshipNodes.find(
+                item =>
+                    item.getAttribute('Id') === relationId
+            );
+
+        if (relation) {
+
+            let target =
+                relation.getAttribute('Target');
+
+            if (target) {
+
+                target =
+                    target.replace(/^\/+/, '');
+
+                if (!target.startsWith('xl/')) {
+                    target = 'xl/' + target;
+                }
+
+                sheetPath = target;
+            }
+        }
+    }
+
+
+    /* Tartalék megoldás */
+
+    if (!sheetPath) {
+
+        sheetPath =
+            'xl/worksheets/sheet1.xml';
+    }
+
+
+    const sheetFile =
+        files[sheetPath];
+
+    if (!sheetFile) {
+
+        throw new Error(
+            'Az első munkalap nem található.'
+        );
+    }
+
+
+    /* Sheet XML */
+
+    const sheet =
+        parseXML(sheetFile);
+
+    const rowNodes =
+        [...sheet.getElementsByTagName('row')];
+
+    const grid = [];
+
+
+    for (const rowNode of rowNodes) {
+
+        const values = [];
+
+        const cells =
+            [...rowNode.getElementsByTagName('c')];
+
+        for (const cell of cells) {
+
+            const reference =
+                cell.getAttribute('r') || '';
+
+            const match =
+                reference.match(/([A-Z]+)/);
+
+            let column = 0;
+
+            if (match) {
+
+                for (const char of match[1]) {
+
+                    column =
+                        column * 26 +
+                        char.charCodeAt(0) -
+                        64;
+                }
+            }
+
+            column--;
+
+            let value = '';
+
+            const type =
+                cell.getAttribute('t');
+
+            const valueNode =
+                cell.getElementsByTagName('v')[0];
+
+            if (type === 's') {
+
+                const index =
+                    Number(
+                        valueNode?.textContent ?? ''
+                    );
+
+                value =
+                    sharedStrings[index] ?? '';
+
+            } else if (type === 'inlineStr') {
+
+                value =
+                    [...cell.getElementsByTagName('t')]
+                        .map(node => node.textContent)
+                        .join('');
+
+            } else {
+
+                value =
+                    valueNode?.textContent ?? '';
+            }
+
+            values[column] = value;
+        }
+
+        grid.push(values);
+    }
+
+
+    if (!grid.length) {
+        return [];
+    }
+
+
+    /* Fejléc */
+
+    const headers =
+        grid[0].map(
+            value => String(value ?? '').trim()
+        );
+
+
+    /* Adatok */
+
+    return grid
+        .slice(1)
+        .map(values => {
+
+            const object = {};
+
+            headers.forEach(
+                (header, index) => {
+
+                    if (header) {
+
+                        object[header] =
+                            values[index] ?? '';
+                    }
+                }
+            );
+
+            return object;
+        });
+}
+
+
+/* -----------------------------
+   EXCEL BETÖLTÉS
+----------------------------- */
+
+async function update() {
+
+    try {
+
+        setStatus(
+            'Excel betöltése...'
+        );
+
+        const url =
+            EXCEL +
+            '?v=' +
+            Date.now();
+
+
+        const response =
+            await fetch(
+                url,
+                {
+                    cache: 'no-store'
+                }
+            );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                'Az Excel nem érhető el. HTTP ' +
+                response.status
+            );
+        }
+
+
+        const buffer =
+            await response.arrayBuffer();
+
+
+        if (!buffer.byteLength) {
+
+            throw new Error(
+                'Az Excel fájl üres.'
+            );
+        }
+
+
+        const data =
+            await parseXlsx(buffer);
+
+
+        if (!data.length) {
+
+            throw new Error(
+                'Az Excel nem tartalmaz adatokat.'
+            );
+        }
+
+
+        /* Ellenőrzés */
+
+        if (
+            !(
+                'ROW' in data[0] &&
+                'STRING' in data[0] &&
+                'TERULET' in data[0]
+            )
+        ) {
+
+            throw new Error(
+                'Nem található a szükséges ROW, STRING vagy TERULET oszlop.'
+            );
+        }
+
+
+        await saveLocal(data);
+
+        rows = data;
+
+        buildAreas();
+
+        enableArea();
+
+        setStatus(
+            'Adatok betöltve ✓'
+        );
+
+        $('info').textContent =
+            'Utoljára frissítve: ' +
+            new Date().toLocaleString(
+                'hu-HU'
+            );
+
+    } catch (error) {
+
+        console.error(
+            'SLK2 hiba:',
+            error
+        );
+
+
+        if (rows.length) {
+
+            setStatus(
+                'Offline mód – helyi adatok használata'
+            );
+
+        } else {
+
+            setStatus(
+                'Hiba: ' + error.message,
+                false
+            );
+        }
+    }
+}
+
+
+/* -----------------------------
+   TERÜLET VÁLASZTÁS
+----------------------------- */
+
+$('area').addEventListener(
+    'change',
+    () => {
+
+        $('search').value = '';
+
+        $('result').innerHTML = '';
+
+        $('search').disabled =
+            !$('area').value;
+
+        if ($('area').value) {
+            $('search').focus();
+        }
+    }
+);
+
+
+/* -----------------------------
+   KERESÉS
+----------------------------- */
+
+$('search').addEventListener(
+    'input',
+    () => {
+
+        const area =
+            $('area').value;
+
+        const query =
+            $('search')
+                .value
+                .trim()
+                .toLowerCase();
+
+
+        if (!area || !query) {
+
+            $('result').innerHTML = '';
+
+            return;
+        }
+
+
+        const hits =
+            rows.filter(row => {
+
+                const rowArea =
+                    String(
+                        row.TERULET ?? ''
+                    ).trim();
+
+                const stringValue =
+                    String(
+                        row.STRING ?? ''
+                    ).toLowerCase();
+
+                return (
+                    rowArea === area &&
+                    stringValue.includes(query)
+                );
+            });
+
+
+        if (hits.length) {
+
+            $('result').innerHTML =
+                hits
+                    .map(
+                        row =>
+                            `<div class="row">${esc(row.ROW)}</div>`
+                    )
+                    .join('');
+
+        } else {
+
+            $('result').innerHTML =
+                '<div class="none">Nincs találat</div>';
+        }
+    }
+);
+
+
+/* -----------------------------
+   INDÍTÁS
+----------------------------- */
+
+(async function init() {
+
+    try {
+
+        /* Service Worker */
+
+        if ('serviceWorker' in navigator) {
+
+            try {
+
+                await navigator.serviceWorker.register(
+                    './sw.js?v=3'
+                );
+
+            } catch (error) {
+
+                console.warn(
+                    'Service Worker hiba:',
+                    error
+                );
+            }
+        }
+
+
+        /* IndexedDB */
+
+        db = await openDB();
+
+
+        /* Helyi adatok */
+
+        const local =
+            await getLocal();
+
+
+        if (
+            local &&
+            Array.isArray(local.rows) &&
+            local.rows.length
+        ) {
+
+            rows = local.rows;
+
+            buildAreas();
+
+            enableArea();
+
+            setStatus(
+                'Helyi adatok betöltve ✓'
+            );
+
+            $('info').textContent =
+                'Utoljára frissítve: ' +
+                new Date(
+                    local.updatedAt
+                ).toLocaleString(
+                    'hu-HU'
+                );
+
+        } else {
+
+            setStatus(
+                'Első adatbetöltés...'
+            );
+        }
+
+
+        /* Online frissítés */
+
+        if (navigator.onLine) {
+
+            await update();
+
+        } else if (!rows.length) {
+
+            setStatus(
+                'Nincs internet és nincs helyi adat.',
+                false
+            );
+        }
+
+
+        /* Ha visszajön az internet */
+
+        window.addEventListener(
+            'online',
+            update
+        );
+
+
+        /* Óránként ellenőrzés */
+
+        setInterval(
+            () => {
+
+                if (navigator.onLine) {
+                    update();
+                }
+
+            },
+            UPDATE_INTERVAL
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            error
+        );
+
+        setStatus(
+            'Indítási hiba: ' +
+            error.message,
+            false
+        );
+    }
+
+})();
+
+</script>
+
+</body>
+</html>
