@@ -1,936 +1,555 @@
 <!doctype html>
 <html lang="hu">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1, viewport-fit=cover"
+    >
+    <meta name="theme-color" content="#007bff">
+    <link rel="manifest" href="manifest.json">
 
-<meta name="theme-color" content="#007bff">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
+    <title>SLK2 String</title>
 
-<link rel="manifest" href="./manifest.json">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
 
-<title>SLK2 String</title>
+        body {
+            margin: 0;
+            padding: 15px;
+            font-family: Arial, sans-serif;
+            background: #f5f6f8;
+            color: #222;
+        }
 
-<style>
-* {
-    box-sizing: border-box;
-}
+        .app {
+            max-width: 500px;
+            margin: auto;
+            background: #fff;
+            padding: 18px;
+            border-radius: 14px;
+            box-shadow: 0 3px 14px #0001;
+        }
 
-body {
-    margin: 0;
-    padding: 15px;
-    font-family: Arial, sans-serif;
-    background: #f5f6f8;
-    color: #222;
-}
+        h1 {
+            text-align: center;
+            color: #007bff;
+            font-size: 21px;
+            margin: 2px 0 16px;
+        }
 
-.app {
-    max-width: 500px;
-    margin: auto;
-    background: #fff;
-    padding: 18px;
-    border-radius: 14px;
-    box-shadow: 0 3px 14px #0001;
-}
+        .status {
+            text-align: center;
+            font-size: 13px;
+            padding: 9px;
+            border-radius: 8px;
+            background: #eef1f4;
+            margin-bottom: 14px;
+        }
 
-h1 {
-    text-align: center;
-    color: #007bff;
-    font-size: 21px;
-    margin: 2px 0 16px;
-}
+        select,
+        input {
+            width: 100%;
+            height: 52px;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+            border: 1px solid #c8cdd3;
+            border-radius: 9px;
+            font-size: 17px;
+            background: #fff;
+        }
 
-.status {
-    text-align: center;
-    font-size: 13px;
-    padding: 9px;
-    border-radius: 8px;
-    background: #eef1f4;
-    margin-bottom: 14px;
-}
+        input:disabled {
+            background: #eee;
+        }
 
-select,
-input {
-    width: 100%;
-    height: 52px;
-    padding: 10px 12px;
-    margin-bottom: 12px;
-    border: 1px solid #c8cdd3;
-    border-radius: 9px;
-    font-size: 17px;
-    background: #fff;
-}
+        #result {
+            text-align: center;
+            margin-top: 18px;
+        }
 
-input:disabled {
-    background: #eee;
-}
+        .row {
+            font-size: 36px;
+            font-weight: 700;
+            color: #007bff;
+            padding: 20px 12px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            background: #eaf3ff;
+        }
 
-#result {
-    text-align: center;
-    margin-top: 18px;
-}
+        .none {
+            font-size: 18px;
+            color: #777;
+            padding: 15px;
+        }
 
-.row {
-    font-size: 36px;
-    font-weight: 700;
-    color: #007bff;
-    padding: 20px 12px;
-    margin-bottom: 10px;
-    border-radius: 10px;
-    background: #eaf3ff;
-}
-
-.none {
-    font-size: 18px;
-    color: #777;
-    padding: 15px;
-}
-
-.info {
-    text-align: center;
-    color: #777;
-    font-size: 11px;
-    margin-top: 12px;
-}
-</style>
+        .info {
+            text-align: center;
+            color: #777;
+            font-size: 11px;
+            margin-top: 12px;
+        }
+    </style>
 </head>
 
 <body>
-
-<div class="app">
-
-<h1>SLK2 String kereső</h1>
-
-<div class="status" id="status">
-Betöltés...
-</div>
-
-<select id="area" disabled>
-<option value="">Válassz területet</option>
-</select>
-
-<input
-    id="search"
-    type="text"
-    placeholder="Írd be a stringet..."
-    autocomplete="off"
-    autocapitalize="off"
-    spellcheck="false"
-    disabled
->
-
-<div id="result"></div>
-
-<div class="info" id="info"></div>
-
-</div>
-
-<script>
-
-const EXCEL = 'https://norveg34.github.io/string/SLK2_String.xlsx';
-
-const DB = 'SLK2OfflineDB';
-const STORE = 'data';
-const KEY = 'excel';
-
-const INTERVAL = 3600000;
-
-let rows = [];
-let db;
-
-
-/* -------------------------
-   ÁLLAPOT
-------------------------- */
-
-function status(text, ok = true) {
-
-    const element = document.getElementById('status');
-
-    element.textContent = text;
-
-    element.style.background =
-        ok ? '#dff3e4' : '#f8d7da';
-
-    element.style.color =
-        ok ? '#155724' : '#721c24';
-}
-
-
-/* -------------------------
-   HTML BIZTONSÁG
-------------------------- */
-
-function esc(value) {
-
-    return String(value ?? '').replace(
-        /[&<>"']/g,
-        m => ({
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#039;'
-        }[m])
-    );
-}
-
-
-/* -------------------------
-   INDEXED DB
-------------------------- */
-
-function openDB() {
-
-    return new Promise((resolve, reject) => {
-
-        const request =
-            indexedDB.open(DB, 1);
-
-        request.onupgradeneeded = () => {
-
-            if (
-                !request.result
-                    .objectStoreNames
-                    .contains(STORE)
-            ) {
-                request.result
-                    .createObjectStore(STORE);
-            }
-        };
-
-        request.onsuccess = () =>
-            resolve(request.result);
-
-        request.onerror = () =>
-            reject(request.error);
-    });
-}
-
-
-function getLocal() {
-
-    return new Promise((resolve, reject) => {
-
-        const request =
-            db
-                .transaction(STORE, 'readonly')
-                .objectStore(STORE)
-                .get(KEY);
-
-        request.onsuccess = () =>
-            resolve(request.result || null);
-
-        request.onerror = () =>
-            reject(request.error);
-    });
-}
-
-
-function saveLocal(data) {
-
-    return new Promise((resolve, reject) => {
-
-        const tx =
-            db.transaction(STORE, 'readwrite');
-
-        tx.objectStore(STORE).put(
-            {
-                rows: data,
-                updatedAt: new Date().toISOString()
-            },
-            KEY
-        );
-
-        tx.oncomplete = resolve;
-
-        tx.onerror = () =>
-            reject(tx.error);
-    });
-}
-
-
-/* -------------------------
-   TERÜLETEK
-------------------------- */
-
-function buildAreas() {
-
-    const select =
-        document.getElementById('area');
-
-    const old =
-        select.value;
-
-    select.innerHTML =
-        '<option value="">Válassz területet</option>';
-
-    [
-        ...new Set(
-            rows
-                .map(r =>
-                    String(r.TERULET ?? '').trim()
-                )
-                .filter(Boolean)
-        )
-    ]
-    .sort((a, b) =>
-        a.localeCompare(b, 'hu')
-    )
-    .forEach(area => {
-
-        const option =
-            document.createElement('option');
-
-        option.value = area;
-        option.textContent = area;
-
-        select.appendChild(option);
-    });
-
-    if (
-        [...select.options]
-            .some(o => o.value === old)
-    ) {
-        select.value = old;
-    }
-}
-
-
-function enable() {
-
-    document.getElementById('area')
-        .disabled = false;
-}
-
-
-/* -------------------------
-   XLSX ZIP
-------------------------- */
-
-async function unzip(buf) {
-
-    if (!('DecompressionStream' in window)) {
-
-        throw Error(
-            'A telefon böngészője nem támogatja az XLSX feldolgozását. Frissítsd a Chrome-ot.'
-        );
-    }
-
-    const u =
-        new Uint8Array(buf);
-
-    const dv =
-        new DataView(u.buffer);
-
-    let eocd = -1;
-
-    for (
-        let i = u.length - 22;
-        i >= 0 && i > u.length - 65558;
-        i--
-    ) {
-
-        if (
-            dv.getUint32(i, true) ===
-            0x06054b50
-        ) {
-            eocd = i;
-            break;
-        }
-    }
-
-    if (eocd < 0)
-        throw Error('Érvénytelen XLSX fájl.');
-
-    const cdSize =
-        dv.getUint32(eocd + 12, true);
-
-    const cdOff =
-        dv.getUint32(eocd + 16, true);
-
-    let p = cdOff;
-
-    const out = {};
-
-    while (
-        p < cdOff + cdSize
-    ) {
-
-        if (
-            dv.getUint32(p, true) !==
-            0x02014b50
-        ) {
-            break;
+    <div class="app">
+        <h1>SLK2 String kereső</h1>
+
+        <div class="status" id="status">
+            Betöltés...
+        </div>
+
+        <select id="area" disabled>
+            <option value="">Válassz területet</option>
+        </select>
+
+        <input
+            id="search"
+            type="text"
+            placeholder="Írd be a stringet..."
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            disabled
+        >
+
+        <div id="result"></div>
+
+        <div class="info" id="info"></div>
+    </div>
+
+    <script>
+        const EXCEL = 'SLK2_String.xlsx';
+        const DB = 'SLK2OfflineDB';
+        const STORE = 'data';
+        const KEY = 'excel';
+        const INTERVAL = 3600000;
+
+        let rows = [];
+        let db;
+
+        const $ = id => document.getElementById(id);
+
+        function status(t, ok = true) {
+            $('status').textContent = t;
+            $('status').style.background = ok ? '#dff3e4' : '#f8d7da';
+            $('status').style.color = ok ? '#155724' : '#721c24';
         }
 
-        const method =
-            dv.getUint16(p + 10, true);
-
-        const cs =
-            dv.getUint32(p + 20, true);
-
-        const nl =
-            dv.getUint16(p + 28, true);
-
-        const xl =
-            dv.getUint16(p + 30, true);
-
-        const cl =
-            dv.getUint16(p + 32, true);
-
-        const off =
-            dv.getUint32(p + 42, true);
-
-        const name =
-            new TextDecoder().decode(
-                u.slice(
-                    p + 46,
-                    p + 46 + nl
-                )
-            );
-
-        const lp = off;
-
-        const ln =
-            dv.getUint16(lp + 26, true);
-
-        const ll =
-            dv.getUint16(lp + 28, true);
-
-        const start =
-            lp + 30 + ln + ll;
-
-        const raw =
-            u.slice(
-                start,
-                start + cs
-            );
-
-        let data;
-
-        if (method === 0) {
-
-            data = raw;
-
-        } else if (method === 8) {
-
-            const ds =
-                new DecompressionStream(
-                    'deflate-raw'
-                );
-
-            data =
-                new Uint8Array(
-                    await new Response(
-                        new Blob([raw])
-                            .stream()
-                            .pipeThrough(ds)
-                    ).arrayBuffer()
-                );
-
-        } else {
-
-            throw Error(
-                'Nem támogatott XLSX tömörítés.'
+        function esc(v) {
+            return String(v ?? '').replace(
+                /[&<>"']/g,
+                m => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                }[m])
             );
         }
 
-        out[name] = data;
+        function openDB() {
+            return new Promise((res, rej) => {
+                const r = indexedDB.open(DB, 1);
 
-        p +=
-            46 + nl + xl + cl;
-    }
-
-    return out;
-}
-
-
-/* -------------------------
-   XML
-------------------------- */
-
-function xml(bytes) {
-
-    return new DOMParser()
-        .parseFromString(
-            new TextDecoder().decode(bytes),
-            'application/xml'
-        );
-}
-
-
-/* -------------------------
-   XLSX
-------------------------- */
-
-function parseXlsx(buf) {
-
-    return unzip(buf).then(files => {
-
-        let shared = [];
-
-        if (
-            files['xl/sharedStrings.xml']
-        ) {
-
-            const d =
-                xml(
-                    files['xl/sharedStrings.xml']
-                );
-
-            shared =
-                [
-                    ...d.getElementsByTagName('si')
-                ]
-                .map(si =>
-                    [
-                        ...si.getElementsByTagName('t')
-                    ]
-                    .map(t => t.textContent)
-                    .join('')
-                );
-        }
-
-
-        /*
-         * Visszaállítva az eredeti működés:
-         * az első munkalapot olvassuk.
-         */
-
-        let sheet =
-            files['xl/worksheets/sheet1.xml'];
-
-        /*
-         * Ha az XLSX-ben más néven van,
-         * megpróbáljuk megkeresni.
-         */
-
-        if (!sheet) {
-
-            const sheetName =
-                Object.keys(files)
-                    .find(name =>
-                        /^xl\/worksheets\/sheet\d+\.xml$/i
-                            .test(name)
-                    );
-
-            if (sheetName) {
-                sheet = files[sheetName];
-            }
-        }
-
-        if (!sheet)
-            throw Error(
-                'Az első munkalap nem található.'
-            );
-
-
-        const d = xml(sheet);
-
-        const rs =
-            [
-                ...d.getElementsByTagName('row')
-            ];
-
-        const grid = [];
-
-
-        for (const r of rs) {
-
-            const vals = [];
-
-            const cells =
-                [
-                    ...r.getElementsByTagName('c')
-                ];
-
-            for (const c of cells) {
-
-                const ref =
-                    c.getAttribute('r') || '';
-
-                const m =
-                    ref.match(/([A-Z]+)/);
-
-                let col = 0;
-
-                if (m) {
-
-                    for (const ch of m[1]) {
-
-                        col =
-                            col * 26 +
-                            ch.charCodeAt(0) -
-                            64;
+                r.onupgradeneeded = () => {
+                    if (!r.result.objectStoreNames.contains(STORE)) {
+                        r.result.createObjectStore(STORE);
                     }
-                }
+                };
 
-                col--;
-
-                let v =
-                    c.getElementsByTagName('v')[0]
-                        ?.textContent ?? '';
-
-                const typ =
-                    c.getAttribute('t');
-
-                if (typ === 's') {
-
-                    v =
-                        shared[Number(v)] ?? '';
-
-                } else if (
-                    typ === 'inlineStr'
-                ) {
-
-                    v =
-                        [
-                            ...c.getElementsByTagName('t')
-                        ]
-                        .map(t => t.textContent)
-                        .join('');
-                }
-
-                vals[col] = v;
-            }
-
-            grid.push(vals);
-        }
-
-
-        if (!grid.length)
-            return [];
-
-
-        const headers =
-            grid[0].map(
-                x => String(x ?? '')
-            );
-
-
-        return grid.slice(1).map(a => {
-
-            const o = {};
-
-            headers.forEach((h, i) => {
-
-                if (h) {
-                    o[h] = a[i] ?? '';
-                }
-
+                r.onsuccess = () => res(r.result);
+                r.onerror = () => rej(r.error);
             });
-
-            return o;
-        });
-    });
-}
-
-
-/* -------------------------
-   FRISSÍTÉS
-------------------------- */
-
-async function update() {
-
-    try {
-
-        status(
-            'Excel betöltése...'
-        );
-
-
-        const response =
-            await fetch(
-                EXCEL + '?v=' + Date.now(),
-                {
-                    cache: 'no-store'
-                }
-            );
-
-
-        if (!response.ok) {
-
-            throw Error(
-                'Az Excel nem érhető el. HTTP ' +
-                response.status
-            );
         }
 
+        function getLocal() {
+            return new Promise((res, rej) => {
+                const r = db
+                    .transaction(STORE, 'readonly')
+                    .objectStore(STORE)
+                    .get(KEY);
 
-        const data =
-            await parseXlsx(
-                await response.arrayBuffer()
-            );
-
-
-        if (!data.length) {
-
-            throw Error(
-                'Az Excel üres.'
-            );
+                r.onsuccess = () => res(r.result || null);
+                r.onerror = () => rej(r.error);
+            });
         }
 
+        function saveLocal(data) {
+            return new Promise((res, rej) => {
+                const tx = db.transaction(STORE, 'readwrite');
 
-        await saveLocal(data);
+                tx.objectStore(STORE).put(
+                    {
+                        rows: data,
+                        updatedAt: new Date().toISOString()
+                    },
+                    KEY
+                );
 
-        rows = data;
-
-        buildAreas();
-
-        enable();
-
-        status(
-            'Adatok frissítve ✓'
-        );
-
-        document.getElementById('info')
-            .textContent =
-            'Utoljára frissítve: ' +
-            new Date()
-                .toLocaleString('hu-HU');
-
-
-    } catch (e) {
-
-        console.error(e);
-
-        if (rows.length) {
-
-            status(
-                'Offline mód – helyi adatok használata'
-            );
-
-        } else {
-
-            status(
-                'Hiba: ' + e.message,
-                false
-            );
+                tx.oncomplete = res;
+                tx.onerror = () => rej(tx.error);
+            });
         }
-    }
-}
 
+        function buildAreas() {
+            const s = $('area');
+            const old = s.value;
 
-/* -------------------------
-   TERÜLET
-------------------------- */
+            s.innerHTML = '<option value="">Válassz területet</option>';
 
-document
-    .getElementById('area')
-    .addEventListener(
-        'change',
-        () => {
+            [
+                ...new Set(
+                    rows
+                        .map(r => String(r.TERULET ?? '').trim())
+                        .filter(Boolean)
+                )
+            ]
+                .sort((a, b) => a.localeCompare(b, 'hu'))
+                .forEach(a => {
+                    const o = document.createElement('option');
 
-            document
-                .getElementById('search')
-                .value = '';
+                    o.value = a;
+                    o.textContent = a;
 
-            document
-                .getElementById('result')
-                .innerHTML = '';
+                    s.appendChild(o);
+                });
 
-            document
-                .getElementById('search')
-                .disabled =
-                !document
-                    .getElementById('area')
-                    .value;
-
-            if (
-                document
-                    .getElementById('area')
-                    .value
-            ) {
-
-                document
-                    .getElementById('search')
-                    .focus();
+            if ([...s.options].some(o => o.value === old)) {
+                s.value = old;
             }
         }
-    );
 
+        function enable() {
+            $('area').disabled = false;
+        }
 
-/* -------------------------
-   KERESÉS
-------------------------- */
+        async function unzip(buf) {
+            if (!('DecompressionStream' in window)) {
+                throw Error(
+                    'A telefon böngészője nem támogatja az XLSX feldolgozását. Frissítsd a Chrome-ot.'
+                );
+            }
 
-document
-    .getElementById('search')
-    .addEventListener(
-        'input',
-        () => {
+            const u = new Uint8Array(buf);
+            const dv = new DataView(u.buffer);
 
-            const area =
-                document
-                    .getElementById('area')
-                    .value;
+            let eocd = -1;
 
-            const q =
-                document
-                    .getElementById('search')
-                    .value
-                    .trim()
-                    .toLowerCase();
+            for (
+                let i = u.length - 22;
+                i >= 0 && i > u.length - 65558;
+                i--
+            ) {
+                if (dv.getUint32(i, true) === 0x06054b50) {
+                    eocd = i;
+                    break;
+                }
+            }
 
+            if (eocd < 0) {
+                throw Error('Érvénytelen XLSX fájl.');
+            }
 
-            if (!area || !q) {
+            const cdSize = dv.getUint32(eocd + 12, true);
+            const cdOff = dv.getUint32(eocd + 16, true);
 
-                document
-                    .getElementById('result')
-                    .innerHTML = '';
+            let p = cdOff;
+            const out = {};
 
+            while (p < cdOff + cdSize) {
+                if (dv.getUint32(p, true) !== 0x02014b50) {
+                    break;
+                }
+
+                const method = dv.getUint16(p + 10, true);
+                const cs = dv.getUint32(p + 20, true);
+                const us = dv.getUint32(p + 24, true);
+                const nl = dv.getUint16(p + 28, true);
+                const xl = dv.getUint16(p + 30, true);
+                const cl = dv.getUint16(p + 32, true);
+                const off = dv.getUint32(p + 42, true);
+
+                const name = new TextDecoder().decode(
+                    u.slice(p + 46, p + 46 + nl)
+                );
+
+                const lp = off;
+                const ln = dv.getUint16(lp + 26, true);
+                const ll = dv.getUint16(lp + 28, true);
+
+                const start = lp + 30 + ln + ll;
+                const raw = u.slice(start, start + cs);
+
+                let data;
+
+                if (method === 0) {
+                    data = raw;
+                } else if (method === 8) {
+                    const ds = new DecompressionStream('deflate-raw');
+
+                    data = new Uint8Array(
+                        await new Response(
+                            new Blob([raw])
+                                .stream()
+                                .pipeThrough(ds)
+                        ).arrayBuffer()
+                    );
+                } else {
+                    throw Error('Nem támogatott XLSX tömörítés.');
+                }
+
+                out[name] = data;
+
+                p += 46 + nl + xl + cl;
+            }
+
+            return out;
+        }
+
+        function xml(bytes) {
+            return new DOMParser().parseFromString(
+                new TextDecoder().decode(bytes),
+                'application/xml'
+            );
+        }
+
+        function parseXlsx(buf) {
+            return unzip(buf).then(files => {
+                let shared = [];
+
+                if (files['xl/sharedStrings.xml']) {
+                    const d = xml(files['xl/sharedStrings.xml']);
+
+                    shared = [
+                        ...d.getElementsByTagName('si')
+                    ].map(si =>
+                        [
+                            ...si.getElementsByTagName('t')
+                        ]
+                            .map(t => t.textContent)
+                            .join('')
+                    );
+                }
+
+                const sheet = files['xl/worksheets/sheet1.xml'];
+
+                if (!sheet) {
+                    throw Error(
+                        'Az első munkalap nem található.'
+                    );
+                }
+
+                const d = xml(sheet);
+                const rs = [...d.getElementsByTagName('row')];
+                const grid = [];
+
+                for (const r of rs) {
+                    const vals = [];
+
+                    for (const c of r.getElementsByTagName('c')) {
+                        const ref = c.getAttribute('r') || '';
+                        const m = ref.match(/([A-Z]+)/);
+
+                        let col = 0;
+
+                        if (m) {
+                            for (const ch of m[1]) {
+                                col =
+                                    col * 26 +
+                                    ch.charCodeAt(0) -
+                                    64;
+                            }
+                        }
+
+                        col--;
+
+                        let v =
+                            c.getElementsByTagName('v')[0]
+                                ?.textContent ?? '';
+
+                        const typ = c.getAttribute('t');
+
+                        if (typ === 's') {
+                            v = shared[Number(v)] ?? '';
+                        } else if (typ === 'inlineStr') {
+                            v = [
+                                ...c.getElementsByTagName('t')
+                            ]
+                                .map(t => t.textContent)
+                                .join('');
+                        }
+
+                        vals[col] = v;
+                    }
+
+                    grid.push(vals);
+                }
+
+                if (!grid.length) {
+                    return [];
+                }
+
+                const headers = grid[0].map(x =>
+                    String(x ?? '')
+                );
+
+                return grid.slice(1).map(a => {
+                    const o = {};
+
+                    headers.forEach((h, i) => {
+                        if (h) {
+                            o[h] = a[i] ?? '';
+                        }
+                    });
+
+                    return o;
+                });
+            });
+        }
+
+        async function update() {
+            try {
+                status('Frissítés ellenőrzése...');
+
+                const r = await fetch(
+                    EXCEL + '?v=' + Date.now(),
+                    {
+                        cache: 'no-store'
+                    }
+                );
+
+                if (!r.ok) {
+                    throw Error('Az Excel nem érhető el.');
+                }
+
+                const data = await parseXlsx(
+                    await r.arrayBuffer()
+                );
+
+                if (!data.length) {
+                    throw Error('Az Excel üres.');
+                }
+
+                await saveLocal(data);
+
+                rows = data;
+
+                buildAreas();
+                enable();
+
+                status('Adatok frissítve');
+
+                $('info').textContent =
+                    'Utoljára frissítve: ' +
+                    new Date().toLocaleString('hu-HU');
+
+            } catch (e) {
+                if (rows.length) {
+                    status(
+                        'Offline mód – helyi adatok használata'
+                    );
+                } else {
+                    status(
+                        'Hiba: ' + e.message,
+                        false
+                    );
+                }
+            }
+        }
+
+        $('area').addEventListener('change', () => {
+            $('search').value = '';
+            $('result').innerHTML = '';
+
+            $('search').disabled = !$('area').value;
+
+            if ($('area').value) {
+                $('search').focus();
+            }
+        });
+
+        $('search').addEventListener('input', () => {
+            const a = $('area').value;
+            const q = $('search').value
+                .trim()
+                .toLowerCase();
+
+            if (!a || !q) {
+                $('result').innerHTML = '';
                 return;
             }
 
-
-            const hits =
-                rows.filter(r =>
-
-                    String(
-                        r.TERULET ?? ''
-                    ).trim() === area &&
-
-                    String(
-                        r.STRING ?? ''
-                    )
+            const hits = rows.filter(r =>
+                String(r.TERULET ?? '').trim() === a &&
+                String(r.STRING ?? '')
                     .toLowerCase()
                     .includes(q)
+            );
 
-                );
+            $('result').innerHTML = hits.length
+                ? hits
+                    .map(
+                        r =>
+                            `<div class="row">${esc(
+                                r.ROW
+                            )}</div>`
+                    )
+                    .join('')
+                : '<div class="none">Nincs találat</div>';
+        });
 
+        (async () => {
+            if ('serviceWorker' in navigator) {
+                try {
+                    await navigator.serviceWorker.register(
+                        './sw.js'
+                    );
+                } catch (e) {}
+            }
 
-            document
-                .getElementById('result')
-                .innerHTML =
+            db = await openDB();
 
-                hits.length
+            const local = await getLocal();
 
-                    ? hits
-                        .map(r =>
-                            `<div class="row">${esc(r.ROW)}</div>`
-                        )
-                        .join('')
+            if (local?.rows?.length) {
+                rows = local.rows;
 
-                    : '<div class="none">Nincs találat</div>';
-        }
-    );
+                buildAreas();
+                enable();
 
+                status('Helyi adatok betöltve');
 
-/* -------------------------
-   INDÍTÁS
-------------------------- */
+                $('info').textContent =
+                    'Utoljára frissítve: ' +
+                    new Date(
+                        local.updatedAt
+                    ).toLocaleString('hu-HU');
+            } else {
+                status('Első adatbetöltés...');
+            }
 
-(async () => {
-
-    try {
-
-        if (
-            'serviceWorker' in navigator
-        ) {
-
-            try {
-
-                await navigator
-                    .serviceWorker
-                    .register('./sw.js');
-
-            } catch (e) {
-
-                console.warn(
-                    'Service Worker hiba:',
-                    e
+            if (navigator.onLine) {
+                await update();
+            } else if (!rows.length) {
+                status(
+                    'Nincs internet és nincs helyi adat.',
+                    false
                 );
             }
-        }
 
+            window.addEventListener('online', update);
 
-        db = await openDB();
-
-
-        const local =
-            await getLocal();
-
-
-        if (
-            local &&
-            local.rows &&
-            local.rows.length
-        ) {
-
-            rows = local.rows;
-
-            buildAreas();
-
-            enable();
-
-            status(
-                'Helyi adatok betöltve ✓'
+            setInterval(
+                () => navigator.onLine && update(),
+                INTERVAL
             );
-
-            document
-                .getElementById('info')
-                .textContent =
-                'Utoljára frissítve: ' +
-                new Date(
-                    local.updatedAt
-                )
-                .toLocaleString('hu-HU');
-
-        } else {
-
-            status(
-                'Első adatbetöltés...'
-            );
-        }
-
-
-        if (navigator.onLine) {
-
-            await update();
-
-        } else if (!rows.length) {
-
-            status(
-                'Nincs internet és nincs helyi adat.',
-                false
-            );
-        }
-
-
-        window.addEventListener(
-            'online',
-            update
-        );
-
-
-        setInterval(
-            () => {
-
-                if (navigator.onLine) {
-                    update();
-                }
-
-            },
-            INTERVAL
-        );
-
-
-    } catch (e) {
-
-        console.error(e);
-
-        status(
-            'Indítási hiba: ' +
-            e.message,
-            false
-        );
-    }
-
-})();
-
-</script>
-
+        })();
+    </script>
 </body>
 </html>
