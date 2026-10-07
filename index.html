@@ -7,7 +7,7 @@
     <meta name="description" content="String és combiner kereső Excel adatokhoz">
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="icon-192.png" type="image/png">
-    <title>String kereső</title>
+    <title>Combiner kereső</title>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         * { box-sizing: border-box; }
@@ -162,15 +162,42 @@ async function excelBetoltes(fileName) {
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
-        // Elvárt oszlopok: ROW, 1. STRING, 2. STRING, 3. STRING, 4. STRING, TERULET
+        // Az oszlopokat fejléc alapján keressük, így nem számít, melyik oszlopban van a TERULET.
+        const headers = (rawData[0] || []).map(value =>
+            String(value ?? "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        );
+
+        const findColumn = (...names) => {
+            for (const name of names) {
+                const normalized = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const index = headers.findIndex(h => h === normalized);
+                if (index !== -1) return index;
+            }
+            return -1;
+        };
+
+        const rowIndex = findColumn("row", "sor");
+        const teruletIndex = findColumn("terulet", "terület", "area");
+        const stringIndexes = headers
+            .map((header, index) => ({ header, index }))
+            .filter(x => x.header.includes("string"))
+            .map(x => x.index);
+
+        // Ha nincs felismerhető fejléc, a régi 6 oszlopos elrendezést használjuk.
+        const finalRowIndex = rowIndex >= 0 ? rowIndex : 0;
+        const finalTeruletIndex = teruletIndex >= 0 ? teruletIndex : 5;
+        const finalStringIndexes = stringIndexes.length
+            ? stringIndexes.slice(0, 4)
+            : [1, 2, 3, 4];
+
         tableData = rawData.slice(1).map(row => ({
-            row: row[0],
-            string1: row[1],
-            string2: row[2],
-            string3: row[3],
-            string4: row[4],
-            terulet: row[5]
-        }));
+            row: row[finalRowIndex],
+            string1: row[finalStringIndexes[0] ?? -1],
+            string2: row[finalStringIndexes[1] ?? -1],
+            string3: row[finalStringIndexes[2] ?? -1],
+            string4: row[finalStringIndexes[3] ?? -1],
+            terulet: row[finalTeruletIndex]
+        })).filter(item => item.terulet !== undefined && item.terulet !== null && String(item.terulet).trim() !== "");
 
         const teruletek = [...new Set(
             tableData.map(item => String(item.terulet).trim()).filter(Boolean)
