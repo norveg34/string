@@ -18,7 +18,7 @@
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.png">
 
-    <title>Combiner kereső</title>
+    <title>String kereső</title>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
@@ -125,7 +125,11 @@
 
 <div class="container">
 
-    <h2>Combiner kereső</h2>
+    <h2>String kereső</h2>
+
+    <div id="status">
+        ⏳ Betöltés...
+    </div>
 
     <select
         id="teruletSelect"
@@ -155,32 +159,22 @@
 
 let tableData = [];
 
-
 /*
  * Service Worker regisztráció
  */
 if ("serviceWorker" in navigator) {
-
     window.addEventListener("load", () => {
-
         navigator.serviceWorker
             .register("./sw.js")
             .then(() => {
-
-                console.log(
-                    "Service Worker regisztrálva."
-                );
-
+                console.log("Service Worker regisztrálva.");
             })
             .catch(error => {
-
                 console.error(
                     "Service Worker hiba:",
                     error
                 );
-
             });
-
     });
 }
 
@@ -190,17 +184,12 @@ if ("serviceWorker" in navigator) {
  */
 function frissitOnlineStatus() {
 
-    const status =
-        document.getElementById("status");
+    const status = document.getElementById("status");
 
     if (navigator.onLine) {
-
         status.className = "online";
-
     } else {
-
         status.className = "offline";
-
     }
 }
 
@@ -225,36 +214,30 @@ window.addEventListener(
         frissitOnlineStatus();
 
         fetch("./SLK2_String.xlsx")
-
             .then(response => {
 
                 if (!response.ok) {
-
                     throw new Error(
                         "Az Excel fájl nem található!"
                     );
-
                 }
 
                 return response.arrayBuffer();
-
             })
 
             .then(buffer => {
 
-                const workbook =
-                    XLSX.read(
-                        new Uint8Array(buffer),
-                        {
-                            type: "array"
-                        }
-                    );
+                const workbook = XLSX.read(
+                    new Uint8Array(buffer),
+                    {
+                        type: "array"
+                    }
+                );
 
                 const sheet =
                     workbook.Sheets[
                         workbook.SheetNames[0]
                     ];
-
 
                 const rawData =
                     XLSX.utils.sheet_to_json(
@@ -265,16 +248,8 @@ window.addEventListener(
                         }
                     );
 
-
                 /*
-                 * Excel oszlopok:
-                 *
-                 * A = ROW
-                 * B = 1. STRING
-                 * C = 2. STRING
-                 * D = 3. STRING
-                 * E = 4. STRING
-                 * F = TERULET
+                 * Első sor fejléc
                  */
                 tableData =
                     rawData
@@ -289,9 +264,7 @@ window.addEventListener(
 
                             string3: row[3],
 
-                            string4: row[4],
-
-                            terulet: row[5]
+                            terulet: row[4]
 
                         }));
 
@@ -301,7 +274,6 @@ window.addEventListener(
                  */
                 const teruletek = [
                     ...new Set(
-
                         tableData
                             .map(item =>
                                 String(
@@ -311,7 +283,6 @@ window.addEventListener(
                             .filter(
                                 x => x !== ""
                             )
-
                     )
                 ];
 
@@ -349,7 +320,6 @@ window.addEventListener(
                         select.appendChild(
                             option
                         );
-
                     });
 
 
@@ -358,12 +328,15 @@ window.addEventListener(
 
                 document.getElementById(
                     "status"
-                ).innerHTML =
-                    navigator.onLine
-                        ? "✓ Betöltve"
-                        : "✓ Offline mód";
+                ).innerHTML = navigator.onLine
+                    ? "✓ Betöltve"
+                    : "✓ Offline mód";
 
 
+                /*
+                 * 3 másodperc után eltüntetjük
+                 * az állapotjelzést
+                 */
                 setTimeout(() => {
 
                     document.getElementById(
@@ -382,7 +355,6 @@ window.addEventListener(
                     "❌ " + error.message;
 
             });
-
     }
 );
 
@@ -397,12 +369,10 @@ function teruletValasztas() {
             "teruletSelect"
         ).value;
 
-
     const input =
         document.getElementById(
             "searchInput"
         );
-
 
     const result =
         document.getElementById(
@@ -432,12 +402,6 @@ function teruletValasztas() {
 
 /*
  * Keresés
- *
- * Keresés:
- * 1. STRING
- * 2. STRING
- * 3. STRING
- * 4. STRING
  */
 function kereses() {
 
@@ -472,7 +436,7 @@ function kereses() {
 
 
     /*
-     * Találatok keresése
+     * Keresés mindhárom STRING oszlopban
      */
     const talalatok =
         tableData.filter(item => {
@@ -507,24 +471,14 @@ function kereses() {
                 .toLowerCase();
 
 
-            const s4 =
-                String(
-                    item.string4 ?? ""
-                )
-                .trim()
-                .toLowerCase();
-
-
             return (
                 rowTerulet === terulet &&
                 (
                     s1.includes(keresett) ||
                     s2.includes(keresett) ||
-                    s3.includes(keresett) ||
-                    s4.includes(keresett)
+                    s3.includes(keresett)
                 )
             );
-
         });
 
 
@@ -543,7 +497,7 @@ function kereses() {
 
 
     /*
-     * Találatok megjelenítése
+     * Találatok
      */
     result.innerHTML =
         talalatok
@@ -553,7 +507,6 @@ function kereses() {
                 </div>`
             )
             .join("");
-
 }
 
 
@@ -583,7 +536,6 @@ function escapeHtml(value) {
             /'/g,
             "&#039;"
         );
-
 }
 
 </script>
