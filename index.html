@@ -30,21 +30,21 @@
             height: 100%;
         }
 
-        /* ALAPÉRTELMEZETT (VILÁGOS MÓD) GEMINI HÁTTÉR */
+        /* VILÁGOS MÓD - folyamatos Gemini hullámzó háttér */
         body.light-mode {
             font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #f8fafc, #e2e8f0, #f1f5f9, #fae8ff);
-            background-size: 300% 300%;
-            animation: geminiWave 15s ease infinite;
+            background: linear-gradient(135deg, #f8fafc, #e2e8f0, #f1f5f9, #fae8ff, #e0f2fe);
+            background-size: 400% 400%;
+            animation: geminiWave 12s ease infinite;
             color: #1e293b;
         }
 
-        /* SÖTÉT MÓD GEMINI HÁTTÉR */
+        /* SÖTÉT MÓD - folyamatos Gemini hullámzó háttér */
         body.dark-mode {
             font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #090d16, #111827, #1e1b4b, #31103c);
-            background-size: 300% 300%;
-            animation: geminiWave 15s ease infinite;
+            background: linear-gradient(135deg, #090d16, #111827, #1e1b4b, #31103c, #0f172a);
+            background-size: 400% 400%;
+            animation: geminiWave 12s ease infinite;
             color: #f3f4f6;
         }
 
@@ -74,7 +74,6 @@
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
         }
 
-        /* Konténer stílusok témák szerint */
         body.light-mode .container {
             background: rgba(255, 255, 255, 0.82);
             backdrop-filter: blur(16px);
@@ -90,7 +89,6 @@
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
         }
 
-        /* Téma váltó gomb */
         .theme-toggle {
             position: absolute;
             top: 20px;
@@ -108,13 +106,8 @@
             height: 40px;
         }
 
-        body.light-mode .theme-toggle {
-            background: rgba(0, 0, 0, 0.05);
-        }
-
-        body.dark-mode .theme-toggle {
-            background: rgba(255, 255, 255, 0.1);
-        }
+        body.light-mode .theme-toggle { background: rgba(0, 0, 0, 0.05); }
+        body.dark-mode .theme-toggle { background: rgba(255, 255, 255, 0.1); }
 
         h2 {
             text-align: center;
@@ -178,13 +171,13 @@
 
         #status {
             text-align: center;
-            font-size: 14px;
+            font-size: 13px;
             margin-bottom: 15px;
-            min-height: 20px;
+            min-height: 15px;
         }
 
-        body.light-mode #status { color: #64748b; }
-        body.dark-mode #status { color: #9ca3af; }
+        body.light-mode #status { color: #dc2626; }
+        body.dark-mode #status { color: #f87171; }
 
         #result {
             text-align: center;
@@ -228,11 +221,6 @@
         }
         body.light-mode .nincs { color: #64748b; }
         body.dark-mode .nincs { color: #9ca3af; }
-
-        .offline { color: #d97706; }
-        .online { color: #16a34a; }
-        body.dark-mode .offline { color: #fbbf24; }
-        body.dark-mode .online { color: #34d399; }
     </style>
 </head>
 
@@ -243,9 +231,7 @@
 
     <h2>String kereső</h2>
 
-    <div id="status">
-        ⏳ Betöltés...
-    </div>
+    <div id="status"></div>
 
     <select
         id="teruletSelect"
@@ -272,9 +258,6 @@
 </div>
 
 <script>
-/*
- * Téma kezelés (Betöltéskor ellenőrzi a mentett beállítást)
- */
 (function() {
     const savedTheme = localStorage.getItem("theme") || "light-mode";
     const body = document.getElementById("pageBody");
@@ -311,67 +294,26 @@ function toggleTheme() {
 
 let tableData = [];
 
-/*
- * Service Worker regisztráció
- */
 if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
         navigator.serviceWorker
             .register("./sw.js")
-            .then(reg => {
-                console.log("Service Worker regisztrálva.");
-            })
-            .catch(error => {
-                console.error("Service Worker hiba:", error);
-            });
+            .catch(error => console.error("Service Worker hiba:", error));
     });
 }
 
-/*
- * Online / offline állapot
- */
-function frissitOnlineStatus() {
-    const status = document.getElementById("status");
-    if (navigator.onLine) {
-        status.className = "online";
-    } else {
-        status.className = "offline";
-    }
-}
-
-window.addEventListener("online", frissitOnlineStatus);
-window.addEventListener("offline", frissitOnlineStatus);
-
-/*
- * Excel betöltése
- */
 window.addEventListener(
     "DOMContentLoaded",
     () => {
-        frissitOnlineStatus();
-
         fetch("./SLK2_combiner.xlsx")
             .then(response => {
-                if (!response.ok) {
-                    throw new Error("Az Excel fájl nem található!");
-                }
+                if (!response.ok) throw new Error("Az Excel fájl nem található!");
                 return response.arrayBuffer();
             })
             .then(buffer => {
-                const workbook = XLSX.read(
-                    new Uint8Array(buffer),
-                    { type: "array" }
-                );
-
+                const workbook = XLSX.read(new Uint8Array(buffer), { type: "array" });
                 const sheet = workbook.Sheets[workbook.SheetNames[0]];
-
-                const rawData = XLSX.utils.sheet_to_json(
-                    sheet,
-                    {
-                        header: 1,
-                        defval: ""
-                    }
-                );
+                const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
                 tableData = rawData
                     .slice(1)
@@ -404,13 +346,6 @@ window.addEventListener(
                     });
 
                 select.disabled = false;
-
-                document.getElementById("status").innerHTML =
-                    navigator.onLine ? "✓ Betöltve" : "✓ Offline mód";
-
-                setTimeout(() => {
-                    document.getElementById("status").innerHTML = "";
-                }, 3000);
             })
             .catch(error => {
                 document.getElementById("status").innerHTML = "❌ " + error.message;
@@ -418,9 +353,6 @@ window.addEventListener(
     }
 );
 
-/*
- * Terület kiválasztása
- */
 function teruletValasztas() {
     const terulet = document.getElementById("teruletSelect").value;
     const input = document.getElementById("searchInput");
@@ -438,9 +370,6 @@ function teruletValasztas() {
     result.innerHTML = "";
 }
 
-/*
- * Keresés
- */
 function kereses() {
     const terulet = document.getElementById("teruletSelect").value;
     const keresett = document.getElementById("searchInput").value.trim().toLowerCase();
@@ -479,9 +408,6 @@ function kereses() {
         .join("");
 }
 
-/*
- * HTML escape
- */
 function escapeHtml(value) {
     return String(value ?? "")
         .replace(/&/g, "&amp;")
